@@ -1,59 +1,61 @@
 import mxnet as mx
+import mxnet.gluon as g
 import numpy as np
-import gzip
-import struct
-import logging
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+import time
+
+# define hyperparameters
+batch_size = 64
+learning_rate = 1e-3
+epochs = 100
+ctx = mx.gpu()
 
 
-def read_data(label_file, image_file):
-    with gzip.open(label_file) as flbl:
-        magic, num = struct.unpack(">II", flbl.read(8))
-        label = np.fromstring(flbl.read(), dtype=np.int8)
-    with gzip.open(image_file, 'rb') as fimg:
-        magic, num, rows, cols = struct.unpack(">IIII", fimg.read(16))
-        image = np.fromstring(fimg.read(), dtype=np.uint8).reshape(len(label),
-                                                                   rows, cols)
-    return (label, image)
+# define data transform
+def data_transform(data, label):
+    return data.astype(np.float32) / 255, label.astype(np.float32)
 
 
-(train_lbl, train_img) = read_data('./data/train-labels-idx1-ubyte.gz',
-                                   './data/train-images-idx3-ubyte.gz')
-(val_lbl, val_img) = read_data('./data/t10k-labels-idx1-ubyte.gz',
-                               './data/t10k-images-idx3-ubyte.gz')
+# define dataset and dataloader
+train_dataset = g.data.vision.MNIST(transform=data_transform)
+test_dataset = g.data.vision.MNIST(train=False, transform=data_transform)
 
-
-def to4array(x):
-    x = x / 255
-    x = x.reshape(x.shape[0], -1)
-    return x
-
-
-train_iter = mx.io.NDArrayIter(data=to4array(train_img), label=train_lbl,
-                               batch_size=128, shuffle=True, label_name='log')
-
-val_iter = mx.io.NDArrayIter(data=to4array(val_img),
-                             label=val_lbl, batch_size=128,
-                             shuffle=False, label_name='log')
-
-# define network
-checkpoint = mx.callback.do_checkpoint('./save_model/logistic_model')
-data = mx.sym.Variable(name='data')
-label = mx.sym.Variable(name='log')
-fc = mx.sym.FullyConnected(data=data, name='logstic', num_hidden=10)
-logistic = mx.sym.SoftmaxOutput(data=fc, label=label)
+train_loader = g.data.DataLoader(
+    train_dataset, batch_size=batch_size, shuffle=True)
+test_loader = g.data.DataLoader(
+    test_dataset, batch_size=batch_size, shuffle=False)
 
 # define model
-model = mx.mod.Module(
-    context=mx.gpu(0),
-    symbol=logistic,
-    data_names=['data'],
-    label_names=['log'],
-)
+logistic_model = g.nn.Sequential()
+with logistic_model.name_scope():
+    logistic_model.add(g.nn.Dense(10))
 
-model.fit(train_data=train_iter, eval_data=val_iter, num_epoch=50,
-          eval_metric=['acc', 'ce'],
-          optimizer='sgd',
-          optimizer_params=(('learning_rate', 1e-3),),
-          epoch_end_callback=checkpoint)
+logistic_model.collect_params().initialize(
+    mx.init.Xavier(rnd_type='gaussian'), ctx=ctx)
+
+criterion = g.loss.SoftmaxCrossEntropyLoss()
+optimizer = g.Trainer(logistic_model.collect_params(), 'sgd',
+                      {'learning_rate': learning_rate})
+
+# start train
+for e in range(epochs):
+    print('epoch {}'.format(e + 1))
+    print('*' * 10)
+    since = time.time()
+    running_loss = 0.0
+    running_acc = 0.0
+    for i, (img, label) in enumerate(train_loader, 1):
+        img = img.as_in_context(ctx).reshape((-1, 28 * 28))
+        label = label.as_in_context(ctx)
+        with g.autograd.record():
+            output = logistic_model(img)
+            loss = criterion(output, label)
+        loss.backward()
+        optimizer.step(batch_size)
+        # =========== keep average loss and accuracy ==============
+        running_loss += mx.nd.mean(loss).asscalar()
+        predict = mx.nd.argmax(output, axis=1)
+        num_correct = mx.nd.mean(predict == label).asscalar()
+        running_acc += num_correct
+        if i % 300 == 0:
+            print('[{}/{}] Loss: {:.6f}, Acc: {:.6f}'.format(
+                e + 1, epochs, running_loss / i, running_acc / i))
