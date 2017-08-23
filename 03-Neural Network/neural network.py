@@ -1,64 +1,85 @@
 __author__ = 'SherlockLiao'
 
+import time
+
 import mxnet as mx
+import mxnet.gluon as g
 import numpy as np
-import gzip
-import struct
-import logging
-logger = logging.getLogger()
-logger.setLevel(logging.DEBUG)
+
+# define hyperparameters
+batch_size = 32
+learning_rate = 1e-2
+epochs = 100
+step = 300
+ctx = mx.gpu()
 
 
-def read_data(label_file, image_file):
-    with gzip.open(label_file) as flbl:
-        magic, num = struct.unpack(">II", flbl.read(8))
-        label = np.fromstring(flbl.read(), dtype=np.int8)
-    with gzip.open(image_file, 'rb') as fimg:
-        magic, num, rows, cols = struct.unpack(">IIII", fimg.read(16))
-        image = np.fromstring(fimg.read(), dtype=np.uint8).reshape(len(label),
-                                                                   rows, cols)
-    return (label, image)
+# define data transform
+def data_transform(data, label):
+    return data.astype(np.float32) / 255, label.astype(np.float32)
 
 
-(train_lbl, train_img) = read_data('./data/train-labels-idx1-ubyte.gz',
-                                   './data/train-images-idx3-ubyte.gz')
-(val_lbl, val_img) = read_data('./data/t10k-labels-idx1-ubyte.gz',
-                               './data/t10k-images-idx3-ubyte.gz')
+# define dataset and dataloader
+train_dataset = g.data.vision.MNIST(transform=data_transform)
+test_dataset = g.data.vision.MNIST(train=False, transform=data_transform)
 
-
-def to4d(x):
-    x = x / 255
-    x = x.reshape(x.shape[0], -1)
-    return x
-
-train_iter = mx.io.NDArrayIter(data=to4d(train_img), label=train_lbl,
-                           batch_size=128, shuffle=True)
-val_iter = mx.io.NDArrayIter(data=to4d(val_img), label=val_lbl,
-                         batch_size=128, shuffle=False)
-
-
-# define structure
-img = mx.sym.Variable(name='data')
-label = mx.sym.Variable(name='softmax_label')
-fc1 = mx.sym.FullyConnected(data=img, name='fc1', num_hidden=300)
-fc2 = mx.sym.FullyConnected(data=fc1, name='fc2', num_hidden=100)
-fc3 = mx.sym.FullyConnected(data=fc2, name='fc3', num_hidden=10)
-softmax_out = mx.sym.SoftmaxOutput(data=fc3, label=label)
+train_loader = g.data.DataLoader(
+    train_dataset, batch_size=batch_size, shuffle=True)
+test_loader = g.data.DataLoader(
+    test_dataset, batch_size=batch_size, shuffle=False)
 
 # define model
-neural_network = mx.mod.Module(
-            context=mx.cpu(0),
-            symbol=softmax_out,
-            data_names=['data'],
-            label_names=['softmax_label']
-)
+net = g.nn.Sequential(prefix='nn_')
+with net.name_scope():
+    net.add(g.nn.Dense(300, activation='relu'))
+    net.add(g.nn.Dense(100, activation='relu'))
+    net.add(g.nn.Dense(10))
 
-save = mx.callback.do_checkpoint('./model_save/neural_network')
-speed = mx.callback.Speedometer(128, 200)
-# train model
-neural_network.fit(train_data=train_iter, eval_data=val_iter,
-                   num_epoch=100, eval_metric=['acc', 'ce'],
-                   optimizer='sgd',
-                   optimizer_params={'learning_rate': 1e-2},
-                   epoch_end_callback=save
-)
+net.collect_params().initialize(mx.init.Xavier(), ctx=ctx)
+
+criterion = g.loss.SoftmaxCrossEntropyLoss()
+optimizer = g.Trainer(net.collect_params(), 'sgd',
+                      {'learning_rate': learning_rate})
+
+# start train
+for e in range(epochs):
+    print('*' * 10)
+    print('epoch {}'.format(e + 1))
+    since = time.time()
+    moving_loss = 0.0
+    moving_acc = 0.0
+    for i, (img, label) in enumerate(train_loader, 1):
+        img = img.as_in_context(ctx).reshape((-1, 28 * 28))
+        label = label.as_in_context(ctx)
+        with g.autograd.record():
+            output = net(img)
+            loss = criterion(output, label)
+        loss.backward()
+        optimizer.step(img.shape[0])
+        # =========== keep average loss and accuracy ==============
+        moving_loss += mx.nd.mean(loss).asscalar()
+        predict = mx.nd.argmax(output, axis=1)
+        acc = mx.nd.mean(predict == label).asscalar()
+        moving_acc += acc
+        if i % step == 0:
+            print('[{}/{}] Loss: {:.6f}, Acc: {:.6f}'.format(
+                i, len(train_loader), moving_loss / step, moving_acc / step))
+            moving_loss = 0.0
+            moving_acc = 0.0
+    test_loss = 0.0
+    test_acc = 0.0
+    total = 0.0
+    for img, label in test_loader:
+        img = img.as_in_context(ctx).reshape((-1, 28 * 28))
+        label = label.as_in_context(ctx)
+        output = net(img)
+        loss = criterion(output, label)
+        test_loss += mx.nd.sum(loss).asscalar()
+        predict = mx.nd.argmax(output, axis=1)
+        test_acc += mx.nd.sum(predict == label).asscalar()
+        total += img.shape[0]
+    print('Test Loss: {:.6f}, Test Acc: {:.6f}'.format(test_loss / total,
+                                                       test_acc / total))
+    print('Time: {:.1f} s'.format(time.time() - since))
+
+net.save_params('./nn.params')

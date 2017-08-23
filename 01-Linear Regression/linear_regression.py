@@ -46,3 +46,5 @@ with mx.autograd.record(train_mode=False):
 plt.plot(x_train.asnumpy(), y_train.asnumpy(), 'ro', label='actual')
 plt.plot(x_train.asnumpy(), predict.asnumpy(), label='predicted line')
 plt.show()
+
+linear_model.save_params('linear.params')

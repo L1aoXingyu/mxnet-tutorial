@@ -1,12 +1,14 @@
+import time
+
 import mxnet as mx
 import mxnet.gluon as g
 import numpy as np
-import time
 
 # define hyperparameters
-batch_size = 64
+batch_size = 32
 learning_rate = 1e-3
 epochs = 100
+step = 300
 ctx = mx.gpu()
 
 
@@ -38,11 +40,11 @@ optimizer = g.Trainer(logistic_model.collect_params(), 'sgd',
 
 # start train
 for e in range(epochs):
-    print('epoch {}'.format(e + 1))
     print('*' * 10)
+    print('epoch {}'.format(e + 1))
     since = time.time()
-    running_loss = 0.0
-    running_acc = 0.0
+    moving_loss = 0.0
+    moving_acc = 0.0
     for i, (img, label) in enumerate(train_loader, 1):
         img = img.as_in_context(ctx).reshape((-1, 28 * 28))
         label = label.as_in_context(ctx)
@@ -50,12 +52,31 @@ for e in range(epochs):
             output = logistic_model(img)
             loss = criterion(output, label)
         loss.backward()
-        optimizer.step(batch_size)
+        optimizer.step(img.shape[0])
         # =========== keep average loss and accuracy ==============
-        running_loss += mx.nd.mean(loss).asscalar()
+        moving_loss += mx.nd.mean(loss).asscalar()
         predict = mx.nd.argmax(output, axis=1)
-        num_correct = mx.nd.mean(predict == label).asscalar()
-        running_acc += num_correct
-        if i % 300 == 0:
+        acc = mx.nd.mean(predict == label).asscalar()
+        moving_acc += acc
+        if i % step == 0:
             print('[{}/{}] Loss: {:.6f}, Acc: {:.6f}'.format(
-                e + 1, epochs, running_loss / i, running_acc / i))
+                i, len(train_loader), moving_loss / step, moving_acc / step))
+            moving_loss = 0.0
+            moving_acc = 0.0
+    test_loss = 0.0
+    test_acc = 0.0
+    total = 0.0
+    for img, label in test_loader:
+        img = img.as_in_context(ctx).reshape((-1, 28 * 28))
+        label = label.as_in_context(ctx)
+        output = logistic_model(img)
+        loss = criterion(output, label)
+        test_loss += mx.nd.sum(loss).asscalar()
+        predict = mx.nd.argmax(output, axis=1)
+        test_acc += mx.nd.sum(predict == label).asscalar()
+        total += img.shape[0]
+    print('Test Loss: {:.6f}, Test Acc: {:.6f}'.format(test_loss / total,
+                                                       test_acc / total))
+    print('Time: {:.1f} s'.format(time.time() - since))
+
+logistic_model.save_params('./logistic.params')
