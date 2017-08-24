@@ -1,8 +1,8 @@
-import torch
-import torch.nn.functional as F
-from torch import nn, optim
-from torch.autograd import Variable
+import mxnet as mx
+import mxnet.gluon as g
+import numpy as np
 
+ctx = mx.gpu()
 CONTEXT_SIZE = 2
 EMBEDDING_DIM = 10
 # We will use Shakespeare Sonnet 2
@@ -29,27 +29,29 @@ word_to_idx = {word: i for i, word in enumerate(vocb)}
 idx_to_word = {word_to_idx[word]: word for word in word_to_idx}
 
 
-class NgramModel(nn.Module):
+class NgramModel(g.Block):
     def __init__(self, vocb_size, context_size, n_dim):
         super(NgramModel, self).__init__()
-        self.n_word = vocb_size
-        self.embedding = nn.Embedding(self.n_word, n_dim)
-        self.linear1 = nn.Linear(context_size * n_dim, 128)
-        self.linear2 = nn.Linear(128, self.n_word)
+        with self.name_scope():
+            self.n_word = vocb_size
+            self.embedding = g.nn.Embedding(self.n_word, n_dim)
+            self.linear1 = g.nn.Dense(128, activation='relu')
+            self.linear2 = g.nn.Dense(self.n_word)
 
     def forward(self, x):
         emb = self.embedding(x)
-        emb = emb.view(1, -1)
+        emb = emb.reshape((1, -1))
         out = self.linear1(emb)
-        out = F.relu(out)
         out = self.linear2(out)
-        log_prob = F.log_softmax(out)
+        log_prob = mx.nd.log_softmax(out)
         return log_prob
 
 
 ngrammodel = NgramModel(len(word_to_idx), CONTEXT_SIZE, 100)
-criterion = nn.NLLLoss()
-optimizer = optim.SGD(ngrammodel.parameters(), lr=1e-3)
+ngrammodel.collect_params().initialize(mx.init.Xavier(), ctx=ctx)
+criterion = g.loss.SoftmaxCrossEntropyLoss()
+optimizer = g.Trainer(ngrammodel.collect_params(), 'adam',
+                      {'learning_rate': 1e-3})
 
 for epoch in range(100):
     print('epoch: {}'.format(epoch + 1))
@@ -57,21 +59,22 @@ for epoch in range(100):
     running_loss = 0
     for data in trigram:
         word, label = data
-        word = Variable(torch.LongTensor([word_to_idx[i] for i in word]))
-        label = Variable(torch.LongTensor([word_to_idx[label]]))
+        word = mx.nd.array(
+            [word_to_idx[i] for i in word], ctx=ctx, dtype=np.int32)
+        label = mx.nd.array([word_to_idx[label]], ctx=ctx, dtype=np.int32)
         # forward
-        out = ngrammodel(word)
-        loss = criterion(out, label)
-        running_loss += loss.data[0]
+        with g.autograd.record():
+            out = ngrammodel(word)
+            loss = criterion(out, label)
+        running_loss += mx.nd.mean(loss).asscalar()
         # backward
-        optimizer.zero_grad()
         loss.backward()
-        optimizer.step()
+        optimizer.step(1)
     print('Loss: {:.6f}'.format(running_loss / len(word_to_idx)))
 
 word, label = trigram[3]
-word = Variable(torch.LongTensor([word_to_idx[i] for i in word]))
+word = mx.nd.array([word_to_idx[i] for i in word], ctx=ctx, dtype=np.int32)
 out = ngrammodel(word)
-_, predict_label = torch.max(out, 1)
-predict_word = idx_to_word[predict_label.data[0][0]]
+predict_label = mx.nd.argmax(out, axis=1)
+predict_word = idx_to_word[predict_label.asscalar().astype(np.int32)]
 print('real word is {}, predict word is {}'.format(label, predict_word))
