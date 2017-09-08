@@ -29,7 +29,7 @@ def transform(data, label):
     return (data.astype('float32') / 255 - 0.5) / 0.5, label.astype('float32')
 
 
-mnist_train = gluon.data.vision.MNIST(train=True, transform=transform)
+mnist_train = gluon.data.vision.FashionMNIST(train=True, transform=transform)
 
 dataloader = gluon.data.DataLoader(
     mnist_train, batch_size=batch_size, shuffle=True)
