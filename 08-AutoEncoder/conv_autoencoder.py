@@ -2,7 +2,7 @@ __author__ = 'SherlockLiao'
 
 import mxnet as mx
 from mxnet import gluon as g
-from mxnet import ndarray as nd
+from mxnet import nd
 import torch
 from torchvision.utils import save_image
 import os
@@ -37,27 +37,29 @@ dataloader = g.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
 class autoencoder(g.nn.HybridBlock):
     def __init__(self):
         super(autoencoder, self).__init__()
-        self.encoder = g.nn.HybridSequential('encoder_')
-        with self.encoder.name_scope():
-            # b, 16, 10, 10
-            self.encoder.add(
-                g.nn.Conv2D(16, 3, strides=3, padding=1, activation='relu'))
-            self.encoder.add(g.nn.MaxPool2D(2, 2))  # b, 16, 5, 5
-            self.encoder.add(
-                g.nn.Conv2D(8, 3, strides=2, padding=1,
-                            activation='relu'))  # b, 8, 3, 3
-            self.encoder.add(g.nn.MaxPool2D(2, 1))  # b, 8, 2, 2
+        with self.name_scope():
+            self.encoder = g.nn.HybridSequential('encoder_')
+            with self.encoder.name_scope():
+                # b, 16, 10, 10
+                self.encoder.add(
+                    g.nn.Conv2D(
+                        16, 3, strides=3, padding=1, activation='relu'))
+                self.encoder.add(g.nn.MaxPool2D(2, 2))  # b, 16, 5, 5
+                self.encoder.add(
+                    g.nn.Conv2D(8, 3, strides=2, padding=1,
+                                activation='relu'))  # b, 8, 3, 3
+                self.encoder.add(g.nn.MaxPool2D(2, 1))  # b, 8, 2, 2
 
-        self.decoder = g.nn.HybridSequential('decoder_')
-        with self.decoder.name_scope():
-            self.decoder.add(
-                g.nn.Conv2DTranspose(16, 3, strides=2, activation='relu'))
-            self.decoder.add(
-                g.nn.Conv2DTranspose(
-                    8, 5, strides=3, padding=1, activation='relu'))
-            self.decoder.add(
-                g.nn.Conv2DTranspose(
-                    1, 2, strides=2, padding=1, activation='tanh'))
+            self.decoder = g.nn.HybridSequential('decoder_')
+            with self.decoder.name_scope():
+                self.decoder.add(
+                    g.nn.Conv2DTranspose(16, 3, strides=2, activation='relu'))
+                self.decoder.add(
+                    g.nn.Conv2DTranspose(
+                        8, 5, strides=3, padding=1, activation='relu'))
+                self.decoder.add(
+                    g.nn.Conv2DTranspose(
+                        1, 2, strides=2, padding=1, activation='tanh'))
 
     def forward(self, x):
         x = self.encoder(x)

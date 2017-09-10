@@ -36,12 +36,12 @@ dataloader = g.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
 class VAE(g.HybridBlock):
     def __init__(self):
         super(VAE, self).__init__()
-
-        self.fc1 = g.nn.Dense(400)
-        self.fc21 = g.nn.Dense(20)
-        self.fc22 = g.nn.Dense(20)
-        self.fc3 = g.nn.Dense(400)
-        self.fc4 = g.nn.Dense(784)
+        with self.name_scope():
+            self.fc1 = g.nn.Dense(400)
+            self.fc21 = g.nn.Dense(20)
+            self.fc22 = g.nn.Dense(20)
+            self.fc3 = g.nn.Dense(400)
+            self.fc4 = g.nn.Dense(784)
         # self.fc1 = g.nn.Dense(
         #     400,
         #     in_units=784,

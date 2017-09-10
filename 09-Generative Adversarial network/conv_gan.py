@@ -18,7 +18,7 @@ def to_img(x):
 
 
 batch_size = 128
-num_epoch = 100
+num_epoch = 5
 z_dimension = 100
 ctx = mx.gpu()
 
@@ -40,24 +40,25 @@ dataloader = g.data.DataLoader(
 class discriminator(g.HybridBlock):
     def __init__(self):
         super(discriminator, self).__init__()
-        self.conv1 = g.nn.HybridSequential(prefix='conv1_')
-        with self.conv1.name_scope():
-            self.conv1.add(g.nn.Conv2D(32, 5, padding=2))
-            self.conv1.add(g.nn.LeakyReLU(0.2))
-            self.conv1.add(g.nn.AvgPool2D(2, 2))
+        with self.name_scope():
+            self.conv1 = g.nn.HybridSequential(prefix='conv1_')
+            with self.conv1.name_scope():
+                self.conv1.add(g.nn.Conv2D(32, 5, padding=2))
+                self.conv1.add(g.nn.LeakyReLU(0.2))
+                self.conv1.add(g.nn.AvgPool2D(2, 2))
 
-        self.conv2 = g.nn.HybridSequential(prefix='conv2_')
-        with self.conv2.name_scope():
-            self.conv2.add(g.nn.Conv2D(64, 5, padding=2))
-            self.conv2.add(g.nn.LeakyReLU(0.2))
-            self.conv2.add(g.nn.AvgPool2D(2, 2))
+            self.conv2 = g.nn.HybridSequential(prefix='conv2_')
+            with self.conv2.name_scope():
+                self.conv2.add(g.nn.Conv2D(64, 5, padding=2))
+                self.conv2.add(g.nn.LeakyReLU(0.2))
+                self.conv2.add(g.nn.AvgPool2D(2, 2))
 
-        self.fc = g.nn.HybridSequential(prefix='fc_')
-        with self.fc.name_scope():
-            self.fc.add(g.nn.Flatten())
-            self.fc.add(g.nn.Dense(1024))
-            self.fc.add(g.nn.LeakyReLU(0.2))
-            self.fc.add(g.nn.Dense(1))
+            self.fc = g.nn.HybridSequential(prefix='fc_')
+            with self.fc.name_scope():
+                self.fc.add(g.nn.Flatten())
+                self.fc.add(g.nn.Dense(1024))
+                self.fc.add(g.nn.LeakyReLU(0.2))
+                self.fc.add(g.nn.Dense(1))
 
     def forward(self, x):
         x = self.conv1(x)
@@ -74,23 +75,24 @@ d.hybridize()
 class generator(g.HybridBlock):
     def __init__(self, num_feature):
         super(generator, self).__init__()
-        self.fc = g.nn.Dense(num_feature)
+        with self.name_scope():
+            self.fc = g.nn.Dense(num_feature)
 
-        self.br = g.nn.HybridSequential(prefix='batch_relu_')
-        with self.br.name_scope():
-            self.br.add(g.nn.BatchNorm())
-            self.br.add(g.nn.Activation('relu'))
+            self.br = g.nn.HybridSequential(prefix='batch_relu_')
+            with self.br.name_scope():
+                self.br.add(g.nn.BatchNorm())
+                self.br.add(g.nn.Activation('relu'))
 
-        self.downsample = g.nn.HybridSequential(prefix='ds_')
-        with self.downsample.name_scope():
-            self.downsample.add(g.nn.Conv2D(50, 3, strides=3, padding=1))
-            self.downsample.add(g.nn.BatchNorm())
-            self.downsample.add(g.nn.Activation('relu'))
-            self.downsample.add(g.nn.Conv2D(25, 3, strides=1, padding=1))
-            self.downsample.add(g.nn.BatchNorm())
-            self.downsample.add(g.nn.Activation('relu'))
-            self.downsample.add(
-                g.nn.Conv2D(1, 2, strides=2, activation='tanh'))
+            self.downsample = g.nn.HybridSequential(prefix='ds_')
+            with self.downsample.name_scope():
+                self.downsample.add(g.nn.Conv2D(50, 3, strides=1, padding=1))
+                self.downsample.add(g.nn.BatchNorm())
+                self.downsample.add(g.nn.Activation('relu'))
+                self.downsample.add(g.nn.Conv2D(25, 3, strides=1, padding=1))
+                self.downsample.add(g.nn.BatchNorm())
+                self.downsample.add(g.nn.Activation('relu'))
+                self.downsample.add(
+                    g.nn.Conv2D(1, 2, strides=2, activation='tanh'))
 
     def forward(self, x):
         x = self.fc(x)

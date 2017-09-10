@@ -38,19 +38,20 @@ dataloader = gluon.data.DataLoader(
 class autoencoder(gluon.Block):
     def __init__(self):
         super(autoencoder, self).__init__()
-        self.encoder = gluon.nn.Sequential('encoder_')
-        with self.encoder.name_scope():
-            self.encoder.add(gluon.nn.Dense(128, activation='relu'))
-            self.encoder.add(gluon.nn.Dense(64, activation='relu'))
-            self.encoder.add(gluon.nn.Dense(12, activation='relu'))
-            self.encoder.add(gluon.nn.Dense(3))
+        with self.name_scope():
+            self.encoder = gluon.nn.Sequential('encoder_')
+            with self.encoder.name_scope():
+                self.encoder.add(gluon.nn.Dense(128, activation='relu'))
+                self.encoder.add(gluon.nn.Dense(64, activation='relu'))
+                self.encoder.add(gluon.nn.Dense(12, activation='relu'))
+                self.encoder.add(gluon.nn.Dense(3))
 
-        self.decoder = gluon.nn.Sequential('decoder_')
-        with self.decoder.name_scope():
-            self.decoder.add(gluon.nn.Dense(12, activation='relu'))
-            self.decoder.add(gluon.nn.Dense(64, activation='relu'))
-            self.decoder.add(gluon.nn.Dense(128, activation='relu'))
-            self.decoder.add(gluon.nn.Dense(28 * 28, activation='tanh'))
+            self.decoder = gluon.nn.Sequential('decoder_')
+            with self.decoder.name_scope():
+                self.decoder.add(gluon.nn.Dense(12, activation='relu'))
+                self.decoder.add(gluon.nn.Dense(64, activation='relu'))
+                self.decoder.add(gluon.nn.Dense(128, activation='relu'))
+                self.decoder.add(gluon.nn.Dense(28 * 28, activation='tanh'))
 
     def forward(self, x):
         x = self.encoder(x)

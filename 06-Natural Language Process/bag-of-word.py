@@ -30,9 +30,10 @@ for i in range(CONTEXT_SIZE, len(raw_text) - CONTEXT_SIZE):
 class CBOW(g.Block):
     def __init__(self, n_word, n_dim, context_size):
         super(CBOW, self).__init__()
-        self.embedding = g.nn.Embedding(n_word, n_dim)
-        self.linear1 = g.nn.Dense(128, activation='relu')
-        self.linear2 = g.nn.Dense(n_word)
+        with self.name_scope():
+            self.embedding = g.nn.Embedding(n_word, n_dim)
+            self.linear1 = g.nn.Dense(128, activation='relu')
+            self.linear2 = g.nn.Dense(n_word)
 
     def forward(self, x):
         x = self.embedding(x)
