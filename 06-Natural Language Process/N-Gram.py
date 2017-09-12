@@ -63,7 +63,7 @@ for epoch in range(100):
             [word_to_idx[i] for i in word], ctx=ctx, dtype=np.int32)
         label = mx.nd.array([word_to_idx[label]], ctx=ctx, dtype=np.int32)
         # forward
-        with g.autograd.record():
+        with mx.autograd.record():
             out = ngrammodel(word)
             loss = criterion(out, label)
         running_loss += mx.nd.mean(loss).asscalar()

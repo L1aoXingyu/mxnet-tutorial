@@ -73,7 +73,7 @@ for epoch in range(num_epochs):
         img, _ = data
         img = img.reshape((img.shape[0], -1)).as_in_context(ctx)
 
-        with gluon.autograd.record():
+        with mx.autograd.record():
             output = model(img)
             loss = criterion(output, img)
         loss.backward()

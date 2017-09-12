@@ -125,7 +125,7 @@ for epoch in range(num_epochs):
         batch = img.shape[0]
         img = img.reshape((batch, -1))
         img = img.as_in_context(ctx)
-        with g.autograd.record():
+        with mx.autograd.record():
             recon_batch, mu, logvar = model(img)
             loss = loss_function(recon_batch, img, mu, logvar)
         loss.backward()

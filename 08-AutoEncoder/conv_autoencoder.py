@@ -82,7 +82,7 @@ for epoch in range(num_epochs):
         img = img.as_in_context(ctx)
         batch = img.shape[0]
         # ===================forward=====================
-        with g.autograd.record():
+        with mx.autograd.record():
             output = model(img)
             loss = criterion(output, img)
         # ===================backward====================

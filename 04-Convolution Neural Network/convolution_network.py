@@ -57,7 +57,7 @@ for e in range(epochs):
     for i, (img, label) in enumerate(train_loader, 1):
         img = img.as_in_context(ctx)
         label = label.as_in_context(ctx)
-        with g.autograd.record():
+        with mx.autograd.record():
             output = cnn(img)
             loss = criterion(output, label)
         loss.backward()

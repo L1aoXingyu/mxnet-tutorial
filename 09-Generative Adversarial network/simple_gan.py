@@ -75,7 +75,7 @@ for epoch in range(num_epoch):
         fake_label = nd.zeros(shape=[num_img], ctx=ctx)
 
         # compute loss of real_img
-        with g.autograd.record():
+        with mx.autograd.record():
             real_out = discriminator(real_img)
             d_loss_real = bce(real_out, real_label)
         real_scores = real_out  # closer to 1 means better

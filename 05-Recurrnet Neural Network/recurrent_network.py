@@ -68,7 +68,7 @@ for e in range(epochs):
         label = label.as_in_context(ctx)
         h0 = mx.nd.zeros(shape=(2, b, 128), ctx=ctx)
         c0 = mx.nd.zeros(shape=(2, b, 128), ctx=ctx)
-        with g.autograd.record():
+        with mx.autograd.record():
             output = model(img, [h0, c0])
             loss = criterion(output, label)
         loss.backward()

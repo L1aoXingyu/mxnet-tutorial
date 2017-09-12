@@ -62,7 +62,7 @@ for epoch in range(100):
         target = mx.nd.array([word_to_idx[target]], ctx=ctx).astype(np.int32)
         # target = target.astype(np.int32)
         # forward
-        with g.autograd.record():
+        with mx.autograd.record():
             out = model(context)
             loss = criterion(out, target)
         running_loss += mx.nd.mean(loss).asscalar()

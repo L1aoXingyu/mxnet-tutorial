@@ -101,7 +101,7 @@ for epoch in range(300):
         c0 = mx.nd.zeros((1, 1, 128), ctx=ctx)
         char_h0 = mx.nd.zeros((1, 1, 50), ctx=ctx)
         char_c0 = mx.nd.zeros((1, 1, 50), ctx=ctx)
-        with g.autograd.record():
+        with mx.autograd.record():
             out = model(word_list, [char_h0, char_c0], [h0, c0], word)
             loss = criterion(out, tag)
         running_loss += mx.nd.mean(loss).asscalar()

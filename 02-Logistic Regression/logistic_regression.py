@@ -48,7 +48,7 @@ for e in range(epochs):
     for i, (img, label) in enumerate(train_loader, 1):
         img = img.as_in_context(ctx).reshape((-1, 28 * 28))
         label = label.as_in_context(ctx)
-        with g.autograd.record():
+        with mx.autograd.record():
             output = logistic_model(img)
             loss = criterion(output, label)
         loss.backward()
