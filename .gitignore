@@ -2,3 +2,4 @@
 save_model
 data
 *.params
+.idea

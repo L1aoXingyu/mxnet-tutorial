@@ -1,10 +1,18 @@
-import mxnet as mx
-from mxnet import gluon as g
-import numpy as np
-import matplotlib.pyplot as plt
+import logging
+import sys
 
-ctx = mx.gpu()
+import matplotlib.pyplot as plt
+import mxnet as mx
+import numpy as np
+
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)-15s %(message)s',
+                    stream=sys.stdout)
+
+ctx = mx.gpu() if mx.test_utils.list_gpus() else mx.cpu()
 batch_size = 4
+total_epochs = 200
+
 x_train = np.array(
     [[3.3], [4.4], [5.5], [6.71], [6.93], [4.168], [9.779], [6.182], [7.59],
      [2.167], [7.042], [10.791], [5.313], [7.997], [3.1]],
@@ -15,36 +23,27 @@ y_train = np.array(
      [1.221], [2.827], [3.465], [1.65], [2.904], [1.3]],
     dtype=np.float32)
 
-x_train = mx.nd.array(x_train)
-y_train = mx.nd.array(y_train)
+train_iter = mx.io.NDArrayIter(x_train, y_train, batch_size=batch_size, shuffle=True, label_name='reg_label')
 
 # define network structure
-linear_model = g.nn.Sequential()
-with linear_model.name_scope():
-    linear_model.add(g.nn.Dense(1))
+data = mx.sym.var('data')
+label = mx.sym.var('reg_label')
+reg = mx.sym.FullyConnected(data, num_hidden=1, name='fc')
+reg = mx.sym.LinearRegressionOutput(data=reg, label=label)
 
-linear_model.collect_params().initialize(mx.init.Normal(sigma=0.01), ctx=ctx)
-criterion = g.loss.L2Loss()
-optimizer = g.Trainer(linear_model.collect_params(), 'sgd',
-                      {'learning_rate': 1e-4})
+mod = mx.mod.Module(reg, data_names=['data'], label_names=['reg_label'], context=ctx)
+mod.fit(train_iter,
+        optimizer='sgd',
+        optimizer_params={'learning_rate': 0.01, 'momentum': 0.9},
+        num_epoch=total_epochs,
+        eval_metric='mse',
+        batch_end_callback=mx.callback.Speedometer(batch_size, frequent=1),
+        epoch_end_callback=mx.callback.do_checkpoint('linear', period=10))
 
-epochs = 1000
-for e in range(epochs):
-    x = x_train.as_in_context(ctx)
-    y = y_train.as_in_context(ctx)
-    with mx.autograd.record():
-        output = linear_model(x)
-        loss = criterion(output, y)
-    loss.backward()
-    optimizer.step(x.shape[0])
-    running_loss = mx.nd.mean(loss).asscalar()
-    print('{}'.format(running_loss))
+# predict result
+mod.forward(mx.io.DataBatch(data=[mx.nd.array(x_train)], label=[mx.nd.array(y_train)]), is_train=False)
+predict = mod.get_outputs()[0].asnumpy()
 
-with mx.autograd.record(train_mode=False):
-    predict = linear_model(x_train.as_in_context(ctx))
-
-plt.plot(x_train.asnumpy(), y_train.asnumpy(), 'ro', label='actual')
-plt.plot(x_train.asnumpy(), predict.asnumpy(), label='predicted line')
+plt.plot(x_train, y_train, 'ro', label='actual')
+plt.plot(x_train, predict, label='predicted line')
 plt.show()
-
-linear_model.save_params('linear.params')
